@@ -1,97 +1,95 @@
 const express = require('express')
-const morgan = require('morgan')
 const app = express()
 
+const requestLogger = (request, response, next) => {
+  console.log('Method:', request.method)
+  console.log('Path:  ', request.path)
+  console.log('Body:  ', request.body)
+  console.log('---')
+  next()
+}
+app.use(requestLogger)
+
+const cors = require('cors')
+app.use(cors())
+
 app.use(express.json())
+app.use(express.static('dist'))
 
-morgan.token('post-content', function (req, res) { return req.method === 'POST' ? JSON.stringify(req.body) : '' })
-
-app.use(morgan(':method :url :status :res[content-length] :response-time ms :post-content'))
-
-let phonebook = [
-    { 
-      "id": 1,
-      "name": "Arto Hellas", 
-      "number": "040-123456"
-    },
-    { 
-      "id": 2,
-      "name": "Ada Lovelace", 
-      "number": "39-44-5323523"
-    },
-    { 
-      "id": 3,
-      "name": "Dan Abramov", 
-      "number": "12-43-234345"
-    },
-    { 
-      "id": 4,
-      "name": "Mary Poppendieck", 
-      "number": "39-23-6423122"
-    }
+let notes = [
+  {
+    id: 1,
+    content: "HTML is easy",
+    important: true
+  },
+  {
+    id: 2,
+    content: "Browser can execute only JavaScript",
+    important: false
+  },
+  {
+    id: 3,
+    content: "GET and POST are the most important methods of HTTP protocol",
+    important: true
+  }
 ]
 
-app.get('/api/persons', (request, response) => {
-  response.json(phonebook)
+const generateId = () => {
+  const maxId = notes.length > 0
+    ? Math.max(...notes.map(n => n.id))
+    : 0
+  return maxId + 1
+}
+
+app.post('/api/notes', (request, response) => {
+  const body = request.body
+
+  if (!body.content) {
+    return response.status(400).json({ 
+      error: 'content missing' 
+    })
+  }
+
+  const note = {
+    content: body.content,
+    important: Boolean(body.important) || false,
+    id: generateId(),
+  }
+
+  notes = notes.concat(note)
+
+  response.json(note)
 })
 
-app.get('/info', (request, response) => {
-  const date = new Date()
-  const info = `<p>Phonebook has info for ${phonebook.length} people</p><p>${date.toString()}</p>`
-  response.send(info)
-})
-
-app.get('/api/persons/:id', (request, response) => {
+app.get('/api/notes/:id', (request, response) => {
   const id = Number(request.params.id)
   console.log(id)
-  const person = phonebook.find(person => person.id === id)
-  console.log(person)
-  if (person) {
-    response.json(person)
+  const note = notes.find(note => {
+    console.log(note.id, typeof note.id, id, typeof id, note.id === id)
+    return note.id === id
+  })
+  console.log(note)
+  if (note) {
+    response.json(note)
   } else {
     response.status(404).end()
+    //response.status(404).send('Current password does not match')
   }  
 })
 
-app.delete('/api/persons/:id', (request, response) => {
+app.delete('/api/notes/:id', (request, response) => {
   const id = Number(request.params.id)
-  console.log(id)
-  phonebook = phonebook.filter(person => person.id !== id)
+  notes = notes.filter(note => note.id !== id)
  
   response.status(204).end()
 })
 
-const generateId = () => {
-  return  Math.floor(Math.random() * 10000)
-}
+app.get('/', (request, response) => {
+  response.send('<h1>Hello World!</h1>')
+})
 
-app.post('/api/persons', (request, response) => {
-  const body = request.body
-  //console.log(body)
-
-  if (!body.name || !body.number) {
-    return response.status(400).json({ 
-      error: 'name o number missing' 
-    })
-  }
-  
-  const exist = phonebook.find(person => person.name === body.name)
-
-  if (exist) {
-    return response.status(400).json({ 
-      error: 'name must be unique' 
-    })
-  }
-
-  const person = {
-    name: body.name,
-    number: body.number,
-    id: generateId(),
-  }
-
-  phonebook = phonebook.concat(person)
-
-  response.json(person)
+app.get('/api/notes', (request, response) => {
+  response.json(notes)
 })
 
 const unknownEndpoint = (request, response) => {
@@ -100,7 +98,7 @@ const unknownEndpoint = (request, response) => {
 
 app.use(unknownEndpoint)
 
-const PORT = 3001
+const PORT = process.env.PORT || 3001
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`)
 })
